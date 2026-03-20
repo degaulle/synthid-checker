@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SynthID Checker</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    background: #f0f2f5;
+    color: #1a1a2e;
+    min-height: 100vh;
+  }
+
+  .container { max-width: 860px; margin: 0 auto; padding: 40px 20px; }
+
+  header { text-align: center; margin-bottom: 36px; }
+  header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+  header h1 span { color: #e74c3c; }
+  header p { color: #666; margin-top: 6px; font-size: 15px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 0; margin-bottom: 0; }
+  .tab {
+    flex: 1; padding: 12px 16px; text-align: center; cursor: pointer;
+    background: #e0e0e0; border: 1px solid #ccc; font-size: 14px; font-weight: 600;
+    transition: all 0.15s;
+  }
+  .tab:first-child { border-radius: 10px 0 0 0; }
+  .tab:last-child { border-radius: 0 10px 0 0; }
+  .tab.active { background: #fff; border-bottom-color: #fff; color: #e74c3c; }
+  .tab:not(.active):hover { background: #eaeaea; }
+
+  .panel {
+    background: #fff; border: 1px solid #ccc; border-top: none;
+    border-radius: 0 0 10px 10px; padding: 32px; display: none;
+  }
+  .panel.active { display: block; }
+
+  /* Drop zone */
+  .dropzone {
+    border: 2px dashed #ccc; border-radius: 10px; padding: 48px 24px;
+    text-align: center; cursor: pointer; transition: all 0.2s;
+    background: #fafafa;
+  }
+  .dropzone:hover, .dropzone.dragover { border-color: #e74c3c; background: #fff5f5; }
+  .dropzone svg { width: 48px; height: 48px; color: #bbb; margin-bottom: 12px; }
+  .dropzone.dragover svg { color: #e74c3c; }
+  .dropzone p { color: #888; font-size: 15px; }
+  .dropzone p strong { color: #e74c3c; }
+  .dropzone .file-count { margin-top: 12px; font-size: 13px; color: #e74c3c; font-weight: 600; }
+
+  /* URL input */
+  .url-row { display: flex; gap: 10px; }
+  .url-row input {
+    flex: 1; padding: 12px 16px; border: 1px solid #ccc; border-radius: 8px;
+    font-size: 15px; outline: none; transition: border-color 0.15s;
+  }
+  .url-row input:focus { border-color: #e74c3c; }
+
+  /* Buttons */
+  .btn {
+    padding: 12px 28px; border: none; border-radius: 8px; font-size: 15px;
+    font-weight: 600; cursor: pointer; transition: all 0.15s;
+  }
+  .btn-primary { background: #e74c3c; color: #fff; }
+  .btn-primary:hover { background: #c0392b; }
+  .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+
+  .upload-actions { margin-top: 20px; text-align: center; }
+
+  /* Loading */
+  .loading { text-align: center; padding: 40px; display: none; }
+  .loading.active { display: block; }
+  .spinner {
+    width: 36px; height: 36px; border: 3px solid #eee; border-top-color: #e74c3c;
+    border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading p { color: #888; font-size: 14px; }
+
+  /* Results */
+  .results { margin-top: 28px; display: none; }
+  .results.active { display: block; }
+
+  .summary {
+    display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap;
+  }
+  .stat {
+    flex: 1; min-width: 120px; padding: 16px; border-radius: 10px; text-align: center;
+  }
+  .stat .num { font-size: 32px; font-weight: 700; }
+  .stat .label { font-size: 13px; color: #666; margin-top: 2px; }
+  .stat-total { background: #f0f2f5; }
+  .stat-total .num { color: #333; }
+  .stat-flagged { background: #ffeef0; }
+  .stat-flagged .num { color: #e74c3c; }
+  .stat-clean { background: #f0faf0; }
+  .stat-clean .num { color: #27ae60; }
+
+  .results-grid { display: flex; flex-direction: column; gap: 10px; }
+
+  .result-card {
+    display: flex; align-items: center; gap: 16px; padding: 14px 18px;
+    background: #fff; border: 1px solid #eee; border-radius: 10px;
+    transition: box-shadow 0.15s;
+  }
+  .result-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  .result-card.flagged { border-left: 4px solid #e74c3c; }
+  .result-card.clean { border-left: 4px solid #27ae60; }
+
+  .result-thumb {
+    width: 56px; height: 56px; border-radius: 8px; object-fit: cover;
+    background: #f0f0f0; flex-shrink: 0;
+  }
+
+  .result-info { flex: 1; min-width: 0; }
+  .result-name {
+    font-size: 14px; font-weight: 600; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .result-detail { font-size: 12px; color: #888; margin-top: 3px; }
+
+  .badges { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
+  .badge {
+    padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.3px;
+  }
+  .badge-synthid { background: #e74c3c; color: #fff; }
+  .badge-google-ai { background: #f39c12; color: #fff; }
+  .badge-c2pa { background: #3498db; color: #fff; }
+  .badge-clean { background: #eee; color: #999; }
+
+  .message { text-align: center; padding: 24px; color: #888; font-size: 14px; }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .result-card { flex-wrap: wrap; }
+    .badges { width: 100%; margin-top: 8px; }
+    .url-row { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1><span>SynthID</span> Checker</h1>
+    <p>Detect Nano Banana / Google AI generated images via C2PA watermark metadata</p>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" data-panel="upload">Upload Images</div>
+    <div class="tab" data-panel="url">Check Link</div>
+  </div>
+
+  <!-- Upload panel -->
+  <div id="panel-upload" class="panel active">
+    <div class="dropzone" id="dropzone">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+      </svg>
+      <p>Drag &amp; drop images here, or <strong>browse files</strong></p>
+      <div class="file-count" id="file-count"></div>
+    </div>
+    <input type="file" id="file-input" multiple accept="image/*" hidden>
+    <div class="upload-actions">
+      <button class="btn btn-primary" id="btn-upload" disabled>Check Images</button>
+    </div>
+  </div>
+
+  <!-- URL panel -->
+  <div id="panel-url" class="panel">
+    <div class="url-row">
+      <input type="text" id="url-input" placeholder="Paste a Typefully or Google Doc link...">
+      <button class="btn btn-primary" id="btn-url">Check Link</button>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <p id="loading-text">Analyzing images for SynthID watermarks...</p>
+  </div>
+
+  <!-- Results -->
+  <div class="results" id="results">
+    <div class="summary" id="summary"></div>
+    <div class="message" id="message"></div>
+    <div class="results-grid" id="results-grid"></div>
+  </div>
+</div>
+
+<script>
+const $ = (sel) => document.querySelector(sel);
+const tabs = document.querySelectorAll('.tab');
+const dropzone = $('#dropzone');
+const fileInput = $('#file-input');
+const btnUpload = $('#btn-upload');
+const btnUrl = $('#btn-url');
+const urlInput = $('#url-input');
+const loading = $('#loading');
+const resultsEl = $('#results');
+let selectedFiles = [];
+
+// Tabs
+tabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    tabs.forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    $(`#panel-${tab.dataset.panel}`).classList.add('active');
+  });
+});
+
+// Drag & drop
+['dragenter', 'dragover'].forEach(e =>
+  dropzone.addEventListener(e, ev => { ev.preventDefault(); dropzone.classList.add('dragover'); }));
+['dragleave', 'drop'].forEach(e =>
+  dropzone.addEventListener(e, ev => { ev.preventDefault(); dropzone.classList.remove('dragover'); }));
+dropzone.addEventListener('drop', ev => {
+  const files = [...ev.dataTransfer.files].filter(f => f.type.startsWith('image/'));
+  if (files.length) addFiles(files);
+});
+dropzone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length) addFiles([...fileInput.files]);
+});
+
+function addFiles(files) {
+  selectedFiles = [...selectedFiles, ...files];
+  $('#file-count').textContent = `${selectedFiles.length} image${selectedFiles.length > 1 ? 's' : ''} selected`;
+  btnUpload.disabled = false;
+}
+
+// Upload check
+btnUpload.addEventListener('click', async () => {
+  if (!selectedFiles.length) return;
+  const formData = new FormData();
+  selectedFiles.forEach(f => formData.append('images', f));
+
+  showLoading(`Analyzing ${selectedFiles.length} image${selectedFiles.length > 1 ? 's' : ''}...`);
+  try {
+    const resp = await fetch('/api/check-images', { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    renderResults(data, selectedFiles);
+  } catch (e) {
+    showError(e.message);
+  }
+});
+
+// URL check
+btnUrl.addEventListener('click', () => checkUrl());
+urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') checkUrl(); });
+
+async function checkUrl() {
+  const url = urlInput.value.trim();
+  if (!url) return;
+  showLoading('Fetching and analyzing images from link...');
+  try {
+    const resp = await fetch('/api/check-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    renderResults(data);
+  } catch (e) {
+    showError(e.message);
+  }
+}
+
+function showLoading(text) {
+  resultsEl.classList.remove('active');
+  loading.classList.add('active');
+  $('#loading-text').textContent = text;
+}
+
+function showError(msg) {
+  loading.classList.remove('active');
+  resultsEl.classList.add('active');
+  $('#summary').innerHTML = '';
+  $('#results-grid').innerHTML = '';
+  $('#message').textContent = msg;
+}
+
+function renderResults(data, localFiles) {
+  loading.classList.remove('active');
+  resultsEl.classList.add('active');
+
+  const { results, summary, message } = data;
+  const clean = summary.total - summary.flagged;
+
+  $('#summary').innerHTML = `
+    <div class="stat stat-total"><div class="num">${summary.total}</div><div class="label">Total Images</div></div>
+    <div class="stat stat-flagged"><div class="num">${summary.flagged}</div><div class="label">SynthID Detected</div></div>
+    <div class="stat stat-clean"><div class="num">${clean}</div><div class="label">Clean</div></div>
+  `;
+
+  if (message && !results.length) {
+    $('#message').textContent = message;
+    $('#results-grid').innerHTML = '';
+    return;
+  }
+  $('#message').textContent = '';
+
+  // Sort: flagged first
+  const sorted = [...results].sort((a, b) => {
+    const af = a.has_synthid || a.is_google_ai ? 1 : 0;
+    const bf = b.has_synthid || b.is_google_ai ? 1 : 0;
+    return bf - af;
+  });
+
+  const grid = $('#results-grid');
+  grid.innerHTML = '';
+
+  sorted.forEach((r, i) => {
+    const isFlagged = r.has_synthid || r.is_google_ai;
+    const card = document.createElement('div');
+    card.className = `result-card ${isFlagged ? 'flagged' : 'clean'}`;
+
+    // Thumbnail
+    let thumbSrc = '';
+    if (localFiles) {
+      const match = localFiles.find(f => f.name === r.filename);
+      if (match) thumbSrc = URL.createObjectURL(match);
+    } else if (r.source_url) {
+      thumbSrc = r.source_url;
+    }
+
+    let badges = '';
+    if (r.has_synthid) badges += '<span class="badge badge-synthid">SynthID</span>';
+    if (r.is_google_ai) badges += '<span class="badge badge-google-ai">Google AI</span>';
+    if (r.has_c2pa && !r.has_synthid && !r.is_google_ai) badges += '<span class="badge badge-c2pa">C2PA</span>';
+    if (!isFlagged && !r.has_c2pa) badges += '<span class="badge badge-clean">Clean</span>';
+
+    const detail = r.details || (isFlagged ? 'Nano Banana generated' : 'No SynthID watermark detected');
+
+    card.innerHTML = `
+      ${thumbSrc ? `<img class="result-thumb" src="${thumbSrc}" alt="" loading="lazy" onerror="this.style.display='none'">` : '<div class="result-thumb"></div>'}
+      <div class="result-info">
+        <div class="result-name" title="${r.filename}">${r.filename}</div>
+        <div class="result-detail">${detail}</div>
+      </div>
+      <div class="badges">${badges}</div>
+    `;
+    grid.appendChild(card);
+  });
+}
+</script>
+</body>
+</html>

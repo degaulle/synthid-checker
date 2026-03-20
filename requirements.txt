@@ -1,0 +1,4 @@
+flask>=3.0
+gunicorn>=21.2
+c2pa-python>=0.29
+requests>=2.31
