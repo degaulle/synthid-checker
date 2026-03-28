@@ -21,26 +21,6 @@
   header h1 span { color: #e74c3c; }
   header p { color: #666; margin-top: 6px; font-size: 15px; }
 
-  /* API key bar */
-  .api-key-bar {
-    background: #fff; border: 1px solid #ccc; border-radius: 10px;
-    padding: 16px 20px; margin-bottom: 20px; display: flex;
-    align-items: center; gap: 10px; flex-wrap: wrap;
-  }
-  .api-key-bar label { font-size: 13px; font-weight: 600; color: #666; white-space: nowrap; }
-  .api-key-bar input {
-    flex: 1; min-width: 200px; padding: 8px 12px; border: 1px solid #ddd;
-    border-radius: 6px; font-size: 14px; font-family: monospace; outline: none;
-  }
-  .api-key-bar input:focus { border-color: #e74c3c; }
-  .api-key-bar .btn-sm {
-    padding: 8px 16px; border: none; border-radius: 6px; font-size: 13px;
-    font-weight: 600; cursor: pointer; background: #e74c3c; color: #fff;
-  }
-  .api-key-bar .btn-sm:hover { background: #c0392b; }
-  .key-status { font-size: 12px; color: #27ae60; font-weight: 600; }
-  .key-status.missing { color: #e74c3c; }
-
   /* Tabs */
   .tabs { display: flex; gap: 0; margin-bottom: 0; }
   .tab {
@@ -189,13 +169,6 @@
     <p>Dual detection: C2PA metadata + Gemini vision analysis</p>
   </header>
 
-  <div class="api-key-bar">
-    <label>Gemini API Key:</label>
-    <input type="password" id="api-key-input" placeholder="Paste your Gemini API key...">
-    <button class="btn-sm" id="btn-set-key">Save Key</button>
-    <span class="key-status missing" id="key-status">No key set</span>
-  </div>
-
   <div class="tabs">
     <div class="tab active" data-panel="upload">Upload Images</div>
     <div class="tab" data-panel="url">Check Link</div>
@@ -245,32 +218,6 @@ const urlInput = $('#url-input');
 const loading = $('#loading');
 const resultsEl = $('#results');
 let selectedFiles = [];
-
-// Key status
-fetch('/api/key-status').then(r => r.json()).then(d => {
-  if (d.has_key) {
-    $('#key-status').textContent = `Key set (${d.masked})`;
-    $('#key-status').classList.remove('missing');
-  }
-});
-$('#btn-set-key').addEventListener('click', async () => {
-  const key = $('#api-key-input').value.trim();
-  if (!key) return;
-  try {
-    const r = await fetch('/api/set-key', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({key}),
-    });
-    const d = await r.json();
-    if (d.ok) {
-      $('#key-status').textContent = `Key set (${d.masked})`;
-      $('#key-status').classList.remove('missing');
-      $('#api-key-input').value = '';
-    }
-  } catch(e) {
-    $('#key-status').textContent = 'Error'; $('#key-status').classList.add('missing');
-  }
-});
 
 // Tabs
 tabs.forEach(tab => {
@@ -366,8 +313,8 @@ function renderResults(data, localFiles) {
 
   // Sort: flagged first
   const sorted = [...results].sort((a, b) => {
-    const af = (a.c2pa.has_synthid || a.c2pa.is_google_ai || a.gemini.is_ai_generated) ? 1 : 0;
-    const bf = (b.c2pa.has_synthid || b.c2pa.is_google_ai || b.gemini.is_ai_generated) ? 1 : 0;
+    const af = (a.c2pa.has_synthid || a.c2pa.is_google_ai || a.gemini.has_synthid) ? 1 : 0;
+    const bf = (b.c2pa.has_synthid || b.c2pa.is_google_ai || b.gemini.has_synthid) ? 1 : 0;
     return bf - af;
   });
 
@@ -376,7 +323,7 @@ function renderResults(data, localFiles) {
 
   sorted.forEach(r => {
     const c = r.c2pa, g = r.gemini;
-    const isFlagged = c.has_synthid || c.is_google_ai || g.is_ai_generated;
+    const isFlagged = c.has_synthid || c.is_google_ai || g.has_synthid;
     const card = document.createElement('div');
     card.className = `result-card ${isFlagged ? 'flagged' : 'clean'}`;
 
@@ -395,19 +342,16 @@ function renderResults(data, localFiles) {
     if (c.has_c2pa && !c.has_synthid && !c.is_google_ai) c2paBadges += '<span class="badge badge-c2pa">C2PA Found</span>';
     if (!c.has_c2pa) c2paBadges += '<span class="badge badge-no-data">No C2PA</span>';
 
-    // Gemini badges
+    // Gemini SynthID badges
     let geminiBadges = '';
-    if (g.is_ai_generated) geminiBadges += '<span class="badge badge-ai">AI Generated</span>';
-    if (g.is_google_ai) geminiBadges += '<span class="badge badge-google">Google AI</span>';
-    if (g.likely_generator && g.likely_generator !== 'Not AI')
-      geminiBadges += `<span class="badge badge-generator">${g.likely_generator}</span>`;
+    if (g.has_synthid) geminiBadges += '<span class="badge badge-synthid">SynthID Detected</span>';
     if (g.confidence) geminiBadges += `<span class="badge badge-confidence">${g.confidence}</span>`;
-    if (!g.is_ai_generated && !g.details.includes('error') && !g.details.includes('No Gemini'))
+    if (!g.has_synthid && !g.details.includes('error') && !g.details.includes('No Gemini'))
       geminiBadges += '<span class="badge badge-clean">Clean</span>';
     if (g.details.includes('No Gemini')) geminiBadges += '<span class="badge badge-no-data">No API Key</span>';
 
     const c2paDetail = c.details || (c.has_c2pa ? 'C2PA metadata present' : 'No C2PA metadata found');
-    const geminiDetail = g.details || (g.is_ai_generated ? 'AI-generated' : 'Not AI-generated');
+    const geminiDetail = g.details || (g.has_synthid ? 'SynthID watermark detected' : 'No SynthID detected');
 
     card.innerHTML = `
       <div class="result-header">
@@ -421,7 +365,7 @@ function renderResults(data, localFiles) {
           <div class="method-detail">${c2paDetail}</div>
         </div>
         <div class="method-col">
-          <div class="method-label gemini">Gemini Vision</div>
+          <div class="method-label gemini">Gemini SynthID Check</div>
           <div class="method-badges">${geminiBadges}</div>
           <div class="method-detail">${geminiDetail}</div>
         </div>
