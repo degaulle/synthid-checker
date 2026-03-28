@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- v3 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -300,6 +301,7 @@ function renderResults(data, localFiles) {
   loading.classList.remove('active');
   resultsEl.classList.add('active');
   const { results, summary, message } = data;
+  if (!summary) { showError(data.error || 'Unexpected server response'); return; }
   const clean = summary.total - summary.flagged;
 
   $('#summary').innerHTML = `
