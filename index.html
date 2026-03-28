@@ -255,7 +255,9 @@ btnUpload.addEventListener('click', async () => {
   showLoading(`Analyzing ${selectedFiles.length} image${selectedFiles.length > 1 ? 's' : ''}...`);
   try {
     const r = await fetch('/api/check-images', { method: 'POST', body: fd });
-    const d = await r.json();
+    const text = await r.text();
+    let d;
+    try { d = JSON.parse(text); } catch { throw new Error('Server returned invalid response. Request may have timed out — try fewer images.'); }
     if (d.error) throw new Error(d.error);
     renderResults(d, selectedFiles);
   } catch(e) { showError(e.message); }
@@ -273,7 +275,9 @@ async function checkUrl() {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({url}),
     });
-    const d = await r.json();
+    const text = await r.text();
+    let d;
+    try { d = JSON.parse(text); } catch { throw new Error('Server returned invalid response. Request may have timed out — try fewer images.'); }
     if (d.error) throw new Error(d.error);
     renderResults(d);
   } catch(e) { showError(e.message); }
