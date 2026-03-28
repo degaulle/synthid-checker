@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SynthID Checker</title>
+<title>AI Image Checker</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -14,12 +14,32 @@
     min-height: 100vh;
   }
 
-  .container { max-width: 860px; margin: 0 auto; padding: 40px 20px; }
+  .container { max-width: 920px; margin: 0 auto; padding: 40px 20px; }
 
   header { text-align: center; margin-bottom: 36px; }
   header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
   header h1 span { color: #e74c3c; }
   header p { color: #666; margin-top: 6px; font-size: 15px; }
+
+  /* API key bar */
+  .api-key-bar {
+    background: #fff; border: 1px solid #ccc; border-radius: 10px;
+    padding: 16px 20px; margin-bottom: 20px; display: flex;
+    align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .api-key-bar label { font-size: 13px; font-weight: 600; color: #666; white-space: nowrap; }
+  .api-key-bar input {
+    flex: 1; min-width: 200px; padding: 8px 12px; border: 1px solid #ddd;
+    border-radius: 6px; font-size: 14px; font-family: monospace; outline: none;
+  }
+  .api-key-bar input:focus { border-color: #e74c3c; }
+  .api-key-bar .btn-sm {
+    padding: 8px 16px; border: none; border-radius: 6px; font-size: 13px;
+    font-weight: 600; cursor: pointer; background: #e74c3c; color: #fff;
+  }
+  .api-key-bar .btn-sm:hover { background: #c0392b; }
+  .key-status { font-size: 12px; color: #27ae60; font-weight: 600; }
+  .key-status.missing { color: #e74c3c; }
 
   /* Tabs */
   .tabs { display: flex; gap: 0; margin-bottom: 0; }
@@ -42,8 +62,7 @@
   /* Drop zone */
   .dropzone {
     border: 2px dashed #ccc; border-radius: 10px; padding: 48px 24px;
-    text-align: center; cursor: pointer; transition: all 0.2s;
-    background: #fafafa;
+    text-align: center; cursor: pointer; transition: all 0.2s; background: #fafafa;
   }
   .dropzone:hover, .dropzone.dragover { border-color: #e74c3c; background: #fff5f5; }
   .dropzone svg { width: 48px; height: 48px; color: #bbb; margin-bottom: 12px; }
@@ -85,9 +104,7 @@
   .results { margin-top: 28px; display: none; }
   .results.active { display: block; }
 
-  .summary {
-    display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap;
-  }
+  .summary { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
   .stat {
     flex: 1; min-width: 120px; padding: 16px; border-radius: 10px; text-align: center;
   }
@@ -100,62 +117,90 @@
   .stat-clean { background: #f0faf0; }
   .stat-clean .num { color: #27ae60; }
 
-  .results-grid { display: flex; flex-direction: column; gap: 10px; }
+  .results-grid { display: flex; flex-direction: column; gap: 14px; }
 
+  /* Result card — two-row layout */
   .result-card {
-    display: flex; align-items: center; gap: 16px; padding: 14px 18px;
     background: #fff; border: 1px solid #eee; border-radius: 10px;
-    transition: box-shadow 0.15s;
+    overflow: hidden; transition: box-shadow 0.15s;
   }
   .result-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
   .result-card.flagged { border-left: 4px solid #e74c3c; }
   .result-card.clean { border-left: 4px solid #27ae60; }
 
+  .result-header {
+    display: flex; align-items: center; gap: 14px; padding: 14px 18px;
+    border-bottom: 1px solid #f0f0f0;
+  }
   .result-thumb {
-    width: 56px; height: 56px; border-radius: 8px; object-fit: cover;
+    width: 48px; height: 48px; border-radius: 8px; object-fit: cover;
     background: #f0f0f0; flex-shrink: 0;
   }
-
-  .result-info { flex: 1; min-width: 0; }
   .result-name {
     font-size: 14px; font-weight: 600; white-space: nowrap;
-    overflow: hidden; text-overflow: ellipsis;
+    overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0;
   }
-  .result-detail { font-size: 12px; color: #888; margin-top: 3px; }
 
-  .badges { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
+  .result-methods {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+  }
+  .method-col {
+    padding: 12px 18px; font-size: 12px;
+  }
+  .method-col:first-child { border-right: 1px solid #f0f0f0; }
+  .method-label {
+    font-weight: 700; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.5px; margin-bottom: 6px; color: #999;
+  }
+  .method-label.c2pa { color: #3498db; }
+  .method-label.gemini { color: #9b59b6; }
+
+  .method-badges { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 6px; }
+  .method-detail { color: #888; font-size: 11px; line-height: 1.4; }
+
+  .badges { display: flex; gap: 5px; flex-wrap: wrap; }
   .badge {
-    padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;
+    padding: 3px 8px; border-radius: 20px; font-size: 10px; font-weight: 700;
     text-transform: uppercase; letter-spacing: 0.3px;
   }
   .badge-synthid { background: #e74c3c; color: #fff; }
-  .badge-google-ai { background: #f39c12; color: #fff; }
+  .badge-google { background: #f39c12; color: #fff; }
   .badge-c2pa { background: #3498db; color: #fff; }
+  .badge-ai { background: #e74c3c; color: #fff; }
+  .badge-confidence { background: #8e44ad; color: #fff; }
+  .badge-generator { background: #9b59b6; color: #fff; }
   .badge-clean { background: #eee; color: #999; }
+  .badge-no-data { background: #f5f5f5; color: #bbb; }
 
   .message { text-align: center; padding: 24px; color: #888; font-size: 14px; }
 
-  /* Responsive */
   @media (max-width: 600px) {
-    .result-card { flex-wrap: wrap; }
-    .badges { width: 100%; margin-top: 8px; }
+    .result-methods { grid-template-columns: 1fr; }
+    .method-col:first-child { border-right: none; border-bottom: 1px solid #f0f0f0; }
     .url-row { flex-direction: column; }
+    .api-key-bar { flex-direction: column; align-items: stretch; }
   }
 </style>
 </head>
 <body>
 <div class="container">
   <header>
-    <h1><span>SynthID</span> Checker</h1>
-    <p>Detect Nano Banana / Google AI generated images via C2PA watermark metadata</p>
+    <h1><span>AI Image</span> Checker</h1>
+    <p>Dual detection: C2PA metadata + Gemini vision analysis</p>
   </header>
+
+  <div class="api-key-bar">
+    <label>Gemini API Key:</label>
+    <input type="password" id="api-key-input" placeholder="Paste your Gemini API key...">
+    <button class="btn-sm" id="btn-set-key">Save Key</button>
+    <span class="key-status missing" id="key-status">No key set</span>
+  </div>
 
   <div class="tabs">
     <div class="tab active" data-panel="upload">Upload Images</div>
     <div class="tab" data-panel="url">Check Link</div>
   </div>
 
-  <!-- Upload panel -->
   <div id="panel-upload" class="panel active">
     <div class="dropzone" id="dropzone">
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -170,7 +215,6 @@
     </div>
   </div>
 
-  <!-- URL panel -->
   <div id="panel-url" class="panel">
     <div class="url-row">
       <input type="text" id="url-input" placeholder="Paste a Typefully or Google Doc link...">
@@ -178,13 +222,11 @@
     </div>
   </div>
 
-  <!-- Loading -->
   <div class="loading" id="loading">
     <div class="spinner"></div>
-    <p id="loading-text">Analyzing images for SynthID watermarks...</p>
+    <p id="loading-text">Running C2PA + Gemini analysis...</p>
   </div>
 
-  <!-- Results -->
   <div class="results" id="results">
     <div class="summary" id="summary"></div>
     <div class="message" id="message"></div>
@@ -193,7 +235,7 @@
 </div>
 
 <script>
-const $ = (sel) => document.querySelector(sel);
+const $ = s => document.querySelector(s);
 const tabs = document.querySelectorAll('.tab');
 const dropzone = $('#dropzone');
 const fileInput = $('#file-input');
@@ -203,6 +245,32 @@ const urlInput = $('#url-input');
 const loading = $('#loading');
 const resultsEl = $('#results');
 let selectedFiles = [];
+
+// Key status
+fetch('/api/key-status').then(r => r.json()).then(d => {
+  if (d.has_key) {
+    $('#key-status').textContent = `Key set (${d.masked})`;
+    $('#key-status').classList.remove('missing');
+  }
+});
+$('#btn-set-key').addEventListener('click', async () => {
+  const key = $('#api-key-input').value.trim();
+  if (!key) return;
+  try {
+    const r = await fetch('/api/set-key', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({key}),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      $('#key-status').textContent = `Key set (${d.masked})`;
+      $('#key-status').classList.remove('missing');
+      $('#api-key-input').value = '';
+    }
+  } catch(e) {
+    $('#key-status').textContent = 'Error'; $('#key-status').classList.add('missing');
+  }
+});
 
 // Tabs
 tabs.forEach(tab => {
@@ -215,18 +283,16 @@ tabs.forEach(tab => {
 });
 
 // Drag & drop
-['dragenter', 'dragover'].forEach(e =>
+['dragenter','dragover'].forEach(e =>
   dropzone.addEventListener(e, ev => { ev.preventDefault(); dropzone.classList.add('dragover'); }));
-['dragleave', 'drop'].forEach(e =>
+['dragleave','drop'].forEach(e =>
   dropzone.addEventListener(e, ev => { ev.preventDefault(); dropzone.classList.remove('dragover'); }));
 dropzone.addEventListener('drop', ev => {
   const files = [...ev.dataTransfer.files].filter(f => f.type.startsWith('image/'));
   if (files.length) addFiles(files);
 });
 dropzone.addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change', () => {
-  if (fileInput.files.length) addFiles([...fileInput.files]);
-});
+fileInput.addEventListener('change', () => { if (fileInput.files.length) addFiles([...fileInput.files]); });
 
 function addFiles(files) {
   selectedFiles = [...selectedFiles, ...files];
@@ -234,43 +300,36 @@ function addFiles(files) {
   btnUpload.disabled = false;
 }
 
-// Upload check
+// Upload
 btnUpload.addEventListener('click', async () => {
   if (!selectedFiles.length) return;
-  const formData = new FormData();
-  selectedFiles.forEach(f => formData.append('images', f));
-
+  const fd = new FormData();
+  selectedFiles.forEach(f => fd.append('images', f));
   showLoading(`Analyzing ${selectedFiles.length} image${selectedFiles.length > 1 ? 's' : ''}...`);
   try {
-    const resp = await fetch('/api/check-images', { method: 'POST', body: formData });
-    const data = await resp.json();
-    if (data.error) throw new Error(data.error);
-    renderResults(data, selectedFiles);
-  } catch (e) {
-    showError(e.message);
-  }
+    const r = await fetch('/api/check-images', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    renderResults(d, selectedFiles);
+  } catch(e) { showError(e.message); }
 });
 
-// URL check
+// URL
 btnUrl.addEventListener('click', () => checkUrl());
 urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') checkUrl(); });
-
 async function checkUrl() {
   const url = urlInput.value.trim();
   if (!url) return;
-  showLoading('Fetching and analyzing images from link...');
+  showLoading('Fetching and analyzing images...');
   try {
-    const resp = await fetch('/api/check-url', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
+    const r = await fetch('/api/check-url', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({url}),
     });
-    const data = await resp.json();
-    if (data.error) throw new Error(data.error);
-    renderResults(data);
-  } catch (e) {
-    showError(e.message);
-  }
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    renderResults(d);
+  } catch(e) { showError(e.message); }
 }
 
 function showLoading(text) {
@@ -278,7 +337,6 @@ function showLoading(text) {
   loading.classList.add('active');
   $('#loading-text').textContent = text;
 }
-
 function showError(msg) {
   loading.classList.remove('active');
   resultsEl.classList.add('active');
@@ -290,13 +348,12 @@ function showError(msg) {
 function renderResults(data, localFiles) {
   loading.classList.remove('active');
   resultsEl.classList.add('active');
-
   const { results, summary, message } = data;
   const clean = summary.total - summary.flagged;
 
   $('#summary').innerHTML = `
     <div class="stat stat-total"><div class="num">${summary.total}</div><div class="label">Total Images</div></div>
-    <div class="stat stat-flagged"><div class="num">${summary.flagged}</div><div class="label">SynthID Detected</div></div>
+    <div class="stat stat-flagged"><div class="num">${summary.flagged}</div><div class="label">Flagged</div></div>
     <div class="stat stat-clean"><div class="num">${clean}</div><div class="label">Clean</div></div>
   `;
 
@@ -309,20 +366,20 @@ function renderResults(data, localFiles) {
 
   // Sort: flagged first
   const sorted = [...results].sort((a, b) => {
-    const af = a.has_synthid || a.is_google_ai ? 1 : 0;
-    const bf = b.has_synthid || b.is_google_ai ? 1 : 0;
+    const af = (a.c2pa.has_synthid || a.c2pa.is_google_ai || a.gemini.is_ai_generated) ? 1 : 0;
+    const bf = (b.c2pa.has_synthid || b.c2pa.is_google_ai || b.gemini.is_ai_generated) ? 1 : 0;
     return bf - af;
   });
 
   const grid = $('#results-grid');
   grid.innerHTML = '';
 
-  sorted.forEach((r, i) => {
-    const isFlagged = r.has_synthid || r.is_google_ai;
+  sorted.forEach(r => {
+    const c = r.c2pa, g = r.gemini;
+    const isFlagged = c.has_synthid || c.is_google_ai || g.is_ai_generated;
     const card = document.createElement('div');
     card.className = `result-card ${isFlagged ? 'flagged' : 'clean'}`;
 
-    // Thumbnail
     let thumbSrc = '';
     if (localFiles) {
       const match = localFiles.find(f => f.name === r.filename);
@@ -331,21 +388,44 @@ function renderResults(data, localFiles) {
       thumbSrc = r.source_url;
     }
 
-    let badges = '';
-    if (r.has_synthid) badges += '<span class="badge badge-synthid">SynthID</span>';
-    if (r.is_google_ai) badges += '<span class="badge badge-google-ai">Google AI</span>';
-    if (r.has_c2pa && !r.has_synthid && !r.is_google_ai) badges += '<span class="badge badge-c2pa">C2PA</span>';
-    if (!isFlagged && !r.has_c2pa) badges += '<span class="badge badge-clean">Clean</span>';
+    // C2PA badges
+    let c2paBadges = '';
+    if (c.has_synthid) c2paBadges += '<span class="badge badge-synthid">SynthID</span>';
+    if (c.is_google_ai) c2paBadges += '<span class="badge badge-google">Google AI</span>';
+    if (c.has_c2pa && !c.has_synthid && !c.is_google_ai) c2paBadges += '<span class="badge badge-c2pa">C2PA Found</span>';
+    if (!c.has_c2pa) c2paBadges += '<span class="badge badge-no-data">No C2PA</span>';
 
-    const detail = r.details || (isFlagged ? 'Nano Banana generated' : 'No SynthID watermark detected');
+    // Gemini badges
+    let geminiBadges = '';
+    if (g.is_ai_generated) geminiBadges += '<span class="badge badge-ai">AI Generated</span>';
+    if (g.is_google_ai) geminiBadges += '<span class="badge badge-google">Google AI</span>';
+    if (g.likely_generator && g.likely_generator !== 'Not AI')
+      geminiBadges += `<span class="badge badge-generator">${g.likely_generator}</span>`;
+    if (g.confidence) geminiBadges += `<span class="badge badge-confidence">${g.confidence}</span>`;
+    if (!g.is_ai_generated && !g.details.includes('error') && !g.details.includes('No Gemini'))
+      geminiBadges += '<span class="badge badge-clean">Clean</span>';
+    if (g.details.includes('No Gemini')) geminiBadges += '<span class="badge badge-no-data">No API Key</span>';
+
+    const c2paDetail = c.details || (c.has_c2pa ? 'C2PA metadata present' : 'No C2PA metadata found');
+    const geminiDetail = g.details || (g.is_ai_generated ? 'AI-generated' : 'Not AI-generated');
 
     card.innerHTML = `
-      ${thumbSrc ? `<img class="result-thumb" src="${thumbSrc}" alt="" loading="lazy" onerror="this.style.display='none'">` : '<div class="result-thumb"></div>'}
-      <div class="result-info">
+      <div class="result-header">
+        ${thumbSrc ? `<img class="result-thumb" src="${thumbSrc}" alt="" loading="lazy" onerror="this.style.display='none'">` : '<div class="result-thumb"></div>'}
         <div class="result-name" title="${r.filename}">${r.filename}</div>
-        <div class="result-detail">${detail}</div>
       </div>
-      <div class="badges">${badges}</div>
+      <div class="result-methods">
+        <div class="method-col">
+          <div class="method-label c2pa">C2PA Metadata</div>
+          <div class="method-badges">${c2paBadges}</div>
+          <div class="method-detail">${c2paDetail}</div>
+        </div>
+        <div class="method-col">
+          <div class="method-label gemini">Gemini Vision</div>
+          <div class="method-badges">${geminiBadges}</div>
+          <div class="method-detail">${geminiDetail}</div>
+        </div>
+      </div>
     `;
     grid.appendChild(card);
   });

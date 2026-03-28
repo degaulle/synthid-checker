@@ -1,4 +1,5 @@
 flask>=3.0
 gunicorn>=21.2
 c2pa-python>=0.29
+google-genai>=1.0
 requests>=2.31
