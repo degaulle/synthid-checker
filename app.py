@@ -131,6 +131,9 @@ def check_gemini(data: bytes, filename: str = "") -> dict:
                 ANALYSIS_PROMPT,
             ],
         )
+        if not response.candidates or not response.text:
+            result["details"] = "Gemini returned no response (image may have been blocked)"
+            return result
         text = response.text.strip()
         if text.startswith("```"):
             text = re.sub(r"^```(?:json)?\s*", "", text)
@@ -291,25 +294,28 @@ def api_key_status():
 
 @app.route("/api/check-images", methods=["POST"])
 def api_check_images():
-    files = request.files.getlist("images")
-    if not files:
-        return jsonify({"error": "No images uploaded"}), 400
+    try:
+        files = request.files.getlist("images")
+        if not files:
+            return jsonify({"error": "No images uploaded"}), 400
 
-    results = []
-    for f in files:
-        data = f.read()
-        if not data:
-            continue
-        result = check_image(data, f.filename or "unknown")
-        results.append(result)
+        results = []
+        for f in files:
+            data = f.read()
+            if not data:
+                continue
+            result = check_image(data, f.filename or "unknown")
+            results.append(result)
 
-    flagged = sum(1 for r in results
-                  if r["c2pa"]["has_synthid"] or r["c2pa"]["is_google_ai"]
-                  or r["gemini"]["has_synthid"])
-    return jsonify({
-        "results": results,
-        "summary": {"total": len(results), "checked": len(results), "flagged": flagged},
-    })
+        flagged = sum(1 for r in results
+                      if r["c2pa"]["has_synthid"] or r["c2pa"]["is_google_ai"]
+                      or r["gemini"]["has_synthid"])
+        return jsonify({
+            "results": results,
+            "summary": {"total": len(results), "checked": len(results), "flagged": flagged},
+        })
+    except Exception as e:
+        return jsonify({"error": f"Server error: {e}"}), 500
 
 
 @app.route("/api/check-url", methods=["POST"])
